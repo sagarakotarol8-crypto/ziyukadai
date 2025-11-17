@@ -25,7 +25,7 @@ arduino とデバイス間でシリアル通信をつなぐのは「通信オブ
 
 
 シリアル通信を担当する通信用インスタンスが必要となります。ですので、通信用インスタンスを作成します。
-名前はDFPとしています。DFRobotDFPlayerMiniは設計図に当たります。
+名前はDFPとしています。DFRobotDFPlayerMiniは設計図にあたります。
 
 ```arduino
 DFRobotDFPlayerMini DFP;
