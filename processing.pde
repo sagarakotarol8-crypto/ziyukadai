@@ -22,11 +22,11 @@ int count = 0;
 
 int alarm = 0;
 int alarmSoundControl = 0; // 0: 標準アラーム, 1: 連続音再生指示 2:連続音停止指示
-String alarmTime = "13:30";
+String alarmTime = "08:27";
 int editMode = 0;
-int alarmHour = 13;
-int alarmMinute = 30;
-int alarmMode = 0;
+int alarmHour = 8;
+int alarmMinute = 27;
+int alarmMode = 1;
 int alarmState = 0;
 int last_alarmState = 0;
 int flag = 0;
@@ -38,6 +38,7 @@ int switchState = 0; // 1: OFF (スマホなし), 0: ON (スマホあり)
 int ldrState = 0; //0(明)or1(暗)
 
 void setup(){
+    size(800, 600);
     //シリアル通信の初期設定
     serial = new Serial(this, Serial.list()[2], 9600);
     println(Serial.list()[2]);
@@ -117,18 +118,19 @@ void draw(){
               alarmSoundControl = 0; //とりあえずゼロに設定する
               if (switchState == 1) { // スイッチがオフ（スマホが置かれていない）の場合
                   // 1. LINEで通知する
-                  sendLineMessage("your pohone can't be found!"); 
+                  sendLineMessage("Your phone is not in place!"); 
                   // 2. 連続音再生を指示する
                   alarmSoundControl = 1; 
               }
               if (ldrState == 0){ //部屋の明るさが閾値以上の場合 
                   // 1. LINEで通知する
-                  sendLineMessage("The lights are on in the room!"); 
+                  sendLineMessage("The room lights are on!"); 
                   // 2. 連続音再生を指示する
                   alarmSoundControl = 1;
               }
               flag = 1;
-          }else if((alarmState == 1) && (flag == 1)){
+          }else if(flag == 1){
+              alarmSoundControl = 0;
               if ((switchState == 0) && (ldrState == 1)){
                   alarmSoundControl = 2;
                   flag = 0;
@@ -184,18 +186,31 @@ void draw(){
                 }
                 last_button = button;
                 // editModeが有効ならアラーム設定時刻をcurrentTimeに上書きする（Arduinoに設定時刻を表示させるため）
+                String serialsenddata;
                 if (editMode > 0) { 
                     alarmTime = nf(alarmHour, 2) + ":" + nf(alarmMinute, 2);
                     currentTime = alarmTime + " EM" + editMode +" AM" + alarmMode; //currentTime "MM-dd HH:mm:ss"
+                    serialsenddata = currentTime + "," + "," + "," + "," + alarm + "," + alarmSoundControl + "\n";
                 } else {
                     // editMode == 0 の場合、currentTimeはdraw()の最初で取得したリアルタイム時刻のまま変更しない
+                    serialsenddata = currentTime + "," + currentTemp + "," + todayWeatherCode + "," + todayChanceOfRain + "," + alarm + "," + alarmSoundControl + "\n";
                 }
                 
                 // --- データ送信（レスポンス） ---
                 // リクエストを受信したときだけ、データをArduinoに返す
-                String serialsenddata = currentTime + "," + currentTemp + "," + todayWeatherCode + "," + todayChanceOfRain + "," + alarm + "," + alarmSoundControl + "\n";
+                
                 serial.write(serialsenddata); 
                 println("Sent to Arduino: " + serialsenddata + " (on request: " + request + ")");
+                    // 背景の描画 (毎フレームリフレッシュ)
+                background(0); // 黒背景
+                
+                // 時刻の描画
+                fill(255); // 文字色を白に設定
+                textSize(20); // 文字サイズを48に設定
+                // 画面中央上に時刻を描画
+                textAlign(CENTER);
+                text("Sent to Arduino: " + serialsenddata + " (on request: " + request + ")", width / 2, height / 4);
+                text(alarmTime + " EM" + editMode +" AM" + alarmMode, width / 2, height * 3 / 4);
             }
         }
     }
@@ -205,7 +220,7 @@ void draw(){
     delay(500);
 
    
-    
+      
     
     
     if(count >= 3600){
@@ -221,7 +236,7 @@ String getWeatherDescription(int code) { //天気コードを種類を抑えた�
   switch(code) {
     case 0:                                 return "1"; //"Clear sky";
     case 1: case 2: case 3:                 return "2"; //"Partly cloudy";
-    case 45: case 48:                       return "2"; //"Fog";
+    case 45: case 48:                       return "2"; //"Fog";                    
     case 51: case 53: case 55:              return "3"; //"Drizzle";
     case 61: case 63: case 65:              return "5"; //"Rain";
     case 71: case 73: case 75:              return "6"; //"Snow";
