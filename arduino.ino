@@ -1,174 +1,181 @@
-#include<LiquidCrystal.h>
-#include<DFRobotDFPlayerMini.h>
-#include<SoftwareSerial.h>
-DFRobotDFPlayerMini DFP;
-int count = 0;
+#include <LiquidCrystal.h>
+#include <DFRobotDFPlayerMini.h>
+#include <SoftwareSerial.h>
 
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
-String date;
-String temp;
-String timeStr;
-String level;
-String rainCha;
-String alarm;
-String soundControl;
-
-#define SWITCH_PIN 11
+// ピン定義
+#define SWITCH_PIN 1
 #define LDR_PIN A5
+#define BUTTON_PIN A0
 
-# define LDR_THRESHOLD 800
+// LCD初期化
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
-int commaPlace[5];
+// DFPlayer初期化
+SoftwareSerial dfpSerial(2, 3);
+DFRobotDFPlayerMini dfp;
 
-void setup(){
-    Serial.begin(9600);
+byte testNum = 0;
 
-    lcd.begin(16, 2);
-
-    lcd.clear();
-
-    SoftwareSerial DFPSerialSetting(2,3);
-    DFPSerialSetting.begin(9600);
-
-    
-    DFP.begin(DFPSerialSetting);
-
-    DFP.volume(25);
-    DFP.play(1);
-    delay(500);
-    DFP.stop();
-
-    pinMode(A0, INPUT);
-    //センサーピンの初期化
-    pinMode(SWITCH_PIN, INPUT_PULLUP);
-    pinMode(LDR_PIN, INPUT);
+void setup() {
+  Serial.begin(9600);
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.print(F("Test Start"));
+  
+  pinMode(SWITCH_PIN, INPUT_PULLUP);
+  pinMode(LDR_PIN, INPUT);
+  
+  Serial.println(F("=Test Start="));
+  delay(1000);
 }
 
-void loop(){
-  // --- 【フェーズ1：ボタン入力チェックとリクエスト送信】 ---
-    char requestButton = 'N'; // 'N' = No Button (何も押されていない)
-    int buttonValue = analogRead(A0);
+void loop() {
+  testNum++;
+  if (testNum > 6) testNum = 1;
+  
+  switch(testNum) {
+    case 1: testLCD(); break;
+    case 2: testButtons(); break;
+    case 3: testSwitch(); break;
+    case 4: testLDR(); break;
+    case 5: testDFP(); break;
+    case 6: testSerial(); break;
+  }
+  
+  delay(3000);
+}
 
-    // ボタン処理とリクエストコードの決定
-    if (buttonValue >= 700 && buttonValue < 1000) { // SELECT
-        lcd.clear();
-        lcd.print("SELECT");
-        requestButton = 'S';
-    }
-    else if (buttonValue >= 500 && buttonValue < 700) { // LEFT
-        lcd.clear();
-        lcd.print("LEFT");
-        requestButton = 'L';
-    }
-    else if (buttonValue >= 300 && buttonValue < 500) { // DOWN
-        lcd.clear();
-        lcd.print("DOWN");
-        requestButton = 'D';
-    }
-    else if (buttonValue >= 50 && buttonValue < 300) { // UP
-        lcd.clear();
-        lcd.print("UP");
-        requestButton = 'U';
-    }
-    else if (buttonValue < 50) { // RIGHT
-        lcd.clear();
-        lcd.print("RIGHT");
-        requestButton = 'R';
-    }
+// Test 1: LCD
+void testLCD() {
+  Serial.println(F("\n[1]LCD"));
+  lcd.clear();
+  lcd.print(F("Test1:LCD"));
+  lcd.setCursor(0, 1);
+  lcd.print(F("0123456789ABCDEF"));
+  Serial.println(F("OK"));
+}
 
-    // センサー値の読み取り
-    int switchState = digitalRead(SWITCH_PIN);
-    int ldrValue = analogRead(LDR_PIN);
-    int ldrState = (ldrValue > LDR_THRESHOLD) ? 1 : 0; // スイッチの状態を 1 (ON) / 0 (OFF) に変換
-
-
-
-    // リクエストをProcessingに送信 (ボタン情報、スイッチ状態、LDR値を含める)
-    // Format: [ButtonCode],[SwitchState],[LDRState]\n
-    Serial.print(requestButton);
-    Serial.print(',');
-    Serial.print(switchState); // スイッチ状態 (0 or 1)
-    Serial.print(',');
-    Serial.print(ldrState); //LDR状態 (0 or 1)
-    Serial.print('\n');
+// Test 2: Buttons
+void testButtons() {
+  Serial.println(F("\n[2]Button"));
+  lcd.clear();
+  lcd.print(F("Test2:Button"));
+  
+  for(int i = 0; i < 20; i++) {
+    int val = analogRead(BUTTON_PIN);
     
-    // 短い待ち時間（デバウンスと送信確保のため）
-    delay(30);
+    lcd.setCursor(0, 1);
+    lcd.print(F("V:"));
+    lcd.print(val);
+    lcd.print(F("   "));
     
+    if (val >= 700) lcd.print(F("SEL"));
+    else if (val >= 500) lcd.print(F("LFT"));
+    else if (val >= 300) lcd.print(F("DWN"));
+    else if (val >= 50) lcd.print(F("UP "));
+    else if (val < 50) lcd.print(F("RGT"));
+    
+    Serial.print(val);
+    Serial.print(F(" "));
+    delay(200);
+  }
+  Serial.println(F("\nOK"));
+}
 
-    // --- 【フェーズ2：Processingからのデータ受信（レスポンス待ち）と表示】 ---
-    if(Serial.available() > 0) {
-        String serialdata = Serial.readStringUntil('\n');
-        serialdata.trim();
-        commaPlace[0] = serialdata.indexOf(',');
-        for(int i = 1; i < 5; i++){
-          commaPlace[i] = serialdata.indexOf(',', commaPlace[i - 1] + 1);
-        }
-        
-        date = serialdata.substring(0, 5);
-        timeStr = serialdata.substring(6, commaPlace[0]);
-        temp = serialdata.substring(commaPlace[0] + 1, commaPlace[1]);
-        level = serialdata.substring(commaPlace[1] + 1, commaPlace[2]);
-        rainCha = serialdata.substring(commaPlace[2] + 1, commaPlace[3]);
-        alarm = serialdata.substring(commaPlace[3] + 1, commaPlace[4]);
-        soundControl = serialdata.substring(commaPlace[4] + 1);
-    }
-
-    lcd.setCursor(0, 0);
-    lcd.print("                ");
+// Test 3: Switch
+void testSwitch() {
+  Serial.println(F("\n[3]Switch"));
+  lcd.clear();
+  lcd.print(F("Test3:Switch"));
+  
+  for(int i = 0; i < 10; i++) {
+    int sw = digitalRead(SWITCH_PIN);
+    
     lcd.setCursor(0, 1);
-    lcd.print("                ");
-
-    lcd.setCursor(0, 0);
-    lcd.print(timeStr);
-    lcd.print(" ");
-    if (level == "1"){
-      lcd.print("Clear sky");
-    } else if (level == "2"){
-      lcd.print("cloudy");
-    } else if (level == "3"){
-      lcd.print("Drizzle");
-    } else if (level == "4"){
-      lcd.print("Showers");
-    } else if (level == "5"){
-      lcd.print("Rain");
-    } else if (level == "6"){
-      lcd.print("Snow");
-    } else if (level == "7"){
-      lcd.print("Storm");
-    } else if (level == "8"){
-      lcd.print("Hailstorm");
-    } else if (level == "9"){
-      lcd.print("Unknown");
-    } else if (level == "10"){
-      lcd.print("Snow");
-    }
-
-    lcd.setCursor(0, 1);
-    lcd.print(temp + "\xdf" + "C");
-    lcd.print(" ");
-    lcd.print(rainCha + "%");
-    lcd.print(" ");
-    lcd.print(date);
-
-    if (alarm == "1"){ 
-        // LCD表示を更新
-        lcd.setCursor(0, 1); 
-        lcd.print("                "); 
-        lcd.setCursor(0, 1); 
-        lcd.print("ALARM! / CHECK!"); 
-        DFP.play(1); 
-        delay(1000); 
-        DFP.stop();
-    }
-    if (soundControl == "1") {
-        lcd.setCursor(0, 1); 
-        lcd.print("                "); 
-        lcd.setCursor(0, 1); 
-        lcd.print("ALARM! / CHECK!"); 
-        DFP.play(1);    }
-    if(soundControl == "2") {
-        DFP.stop();
+    if (sw) {
+      lcd.print(F("OFF(HIGH)"));
+      Serial.print(F("H "));
+    } else {
+      lcd.print(F("ON (LOW) "));
+      Serial.print(F("L "));
     }
     delay(500);
+  }
+  Serial.println(F("\nOK"));
+}
+
+// Test 4: LDR
+void testLDR() {
+  Serial.println(F("\n[4]LDR"));
+  lcd.clear();
+  lcd.print(F("Test4:LDR"));
+  
+  for(int i = 0; i < 10; i++) {
+    int val = analogRead(LDR_PIN);
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("V:"));
+    lcd.print(val);
+    lcd.print(F(" "));
+    
+    if (val > 500) {
+      lcd.print(F("BRT"));
+      Serial.print(F("B"));
+    } else {
+      lcd.print(F("DRK"));
+      Serial.print(F("D"));
+    }
+    
+    Serial.print(val);
+    Serial.print(F(" "));
+    delay(500);
+  }
+  Serial.println(F("\nOK"));
+}
+
+// Test 5: DFPlayer
+void testDFP() {
+  Serial.println(F("\n[5]DFP"));
+  lcd.clear();
+  lcd.print(F("Test5:DFPlayer"));
+  
+  dfpSerial.begin(9600);
+  
+  if (!dfp.begin(dfpSerial)) {
+    Serial.println(F("ERR"));
+    lcd.setCursor(0, 1);
+    lcd.print(F("ERROR!"));
+    delay(2000);
+    return;
+  }
+  
+  lcd.setCursor(0, 1);
+  lcd.print(F("Init OK"));
+  dfp.volume(25);
+  delay(500);
+  
+  lcd.setCursor(0, 1);
+  lcd.print(F("Playing..."));
+  dfp.play(1);
+  delay(1500);
+  dfp.stop();
+  
+  lcd.setCursor(0, 1);
+  lcd.print(F("Stopped"));
+  Serial.println(F("OK"));
+}
+
+// Test 6: Serial
+void testSerial() {
+  Serial.println(F("\n[6]Serial"));
+  lcd.clear();
+  lcd.print(F("Test6:Serial"));
+  
+  for(int i = 0; i < 5; i++) {
+    Serial.println(F("N,0,1"));
+    lcd.setCursor(0, 1);
+    lcd.print(F("Sent:N,0,1"));
+    delay(500);
+  }
+  Serial.println(F("OK"));
 }
